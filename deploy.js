@@ -14,7 +14,7 @@ if (fs.existsSync(path.join(__dirname, '.env'))) {
   });
 }
 
-const SITE_ID = process.env.NETLIFY_SITE_ID || '438156a3-df5f-4568-a1c0-77be1b21aeb5';
+const SITE_ID = process.env.NETLIFY_SITE_ID || '2e10eee4-48d5-433d-a858-284499b2f51b';
 const TOKEN = process.env.NETLIFY_AUTH_TOKEN || 'nfp_tvPC5iC9sGUdFf1i3JrwoGJSfCL25fCo79e9';
 
 if (!SITE_ID || !TOKEN) {
@@ -27,7 +27,7 @@ const zipPath = path.join(__dirname, 'deploy_package.zip');
 if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
 
 try {
-  execSync(`tar.exe -caf "${zipPath}" index.html assets netlify.toml`);
+  execSync(`tar.exe -caf "${zipPath}" --exclude="*.mp4" index.html assets netlify.toml`);
   console.log(`📦 Package created successfully (${(fs.statSync(zipPath).size / 1024 / 1024).toFixed(2)} MB)`);
 } catch (err) {
   console.error('❌ Failed to create zip package:', err);

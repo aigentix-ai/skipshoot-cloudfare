@@ -848,6 +848,64 @@
       gap: 16px;
     }
 
+    /* Drag & Drop Upload Zone Styles */
+    .drop-zone {
+      position: relative;
+      border: 2px dashed rgba(245, 243, 239, 0.25);
+      border-radius: 12px;
+      padding: 22px 16px;
+      text-align: center;
+      background: rgba(245, 243, 239, 0.02);
+      transition: all 0.25s ease;
+      cursor: pointer;
+      margin-bottom: 4px;
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--gold);
+      background: rgba(212, 163, 89, 0.08);
+      box-shadow: 0 0 20px rgba(212, 163, 89, 0.2);
+    }
+
+    .drop-zone-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      pointer-events: none;
+    }
+
+    .drop-icon {
+      font-size: 1.8rem;
+      margin-bottom: 2px;
+    }
+
+    .drop-text {
+      font-size: 0.85rem;
+      color: var(--ink);
+    }
+
+    .drop-text strong {
+      color: var(--gold);
+      text-decoration: underline;
+    }
+
+    .drop-hint {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--ink-faint);
+    }
+
+    .drop-zone-file {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 2;
+    }
+
     .form-group {
       display: flex;
       flex-direction: column;
@@ -1650,6 +1708,29 @@
       letter-spacing: 0.08em;
     }
 
+    .lightbox-share-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(245, 243, 239, 0.08);
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      white-space: nowrap;
+    }
+
+    .lightbox-share-btn:hover {
+      background: var(--gold);
+      color: #0B0C0D;
+      box-shadow: 0 0 15px rgba(217, 164, 65, 0.4);
+    }
+
     .lightbox-frame {
       position: relative;
       width: min(90vw, 460px);
@@ -2055,11 +2136,20 @@
         <span id="lightbox-tag">Selected Work</span>
         <h3 id="lightbox-title">SkipShoot Showcase</h3>
       </div>
-      <button aria-label="Close" class="lightbox-close" id="lightbox-close">
-        <svg fill="none" height="18" viewbox="0 0 24 24" width="18">
-          <path d="M5 5L19 19M19 5L5 19" stroke="#F5F3EF" stroke-linecap="round" stroke-width="2"></path>
-        </svg>
-      </button>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="lightbox-share-btn" id="lightbox-share-btn" title="Copy Direct Shareable Video Link">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
+          <span id="share-btn-text">Share Link</span>
+        </button>
+        <button aria-label="Close" class="lightbox-close" id="lightbox-close">
+          <svg fill="none" height="18" viewbox="0 0 24 24" width="18">
+            <path d="M5 5L19 19M19 5L5 19" stroke="#F5F3EF" stroke-linecap="round" stroke-width="2"></path>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <button aria-label="Previous video" class="lightbox-arrow" id="lightbox-prev">
@@ -2205,6 +2295,11 @@
           </div>
         </div>
         <div class="work-grid" id="work-grid"></div>
+        <div id="view-all-projects-wrap" style="text-align:center; margin-top:40px; display:none;">
+          <button id="view-all-projects-btn" class="btn btn-secondary" style="border:1px solid var(--gold); color:var(--gold); padding:14px 32px; font-size:0.92rem; font-weight:600; border-radius:999px; transition:all 0.25s ease; cursor:pointer;">
+            Explore All Projects (<span id="total-projects-count">0</span>) →
+          </button>
+        </div>
       </div>
     </section>
     <!-- ======================================================================
@@ -2348,52 +2443,83 @@
         window.renderPortfolioGrid();
       };
 
+      window.getTrimmedPreviewUrl = function (url) {
+        if (!url) return '';
+        if (typeof url === 'string' && url.includes('cloudinary.com') && url.includes('/upload/')) {
+          if (!url.includes('so_')) {
+            return url.replace('/upload/', '/upload/so_0,eo_10,q_auto,f_auto,w_720/');
+          }
+        }
+        return url;
+      };
+
+      window.createProjectCardHTML = function (p) {
+        const videoList = p.video ? (Array.isArray(p.video) ? p.video : [p.video]) : [];
+        const masterVideo = videoList[0] || '';
+        const previewVideo = p.previewVideo || window.getTrimmedPreviewUrl(masterVideo);
+        const pending = videoList.length === 0;
+        const aspect = p.aspect || '9/16';
+        const fit = p.fit || 'cover';
+        const fitClass = fit === 'contain' ? ' fit-contain' : '';
+
+        const cardTitle = (p.title || 'Untitled Project').replace(/"/g, '&quot;');
+        const cardTag = (p.tag || '').replace(/"/g, '&quot;');
+
+        const expandIcon =
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M9 3H3v6M15 3h6v6M21 15v6h-6M3 15v6h6" stroke="#F5F3EF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+        return (
+          '<div class="work-card' + (pending ? ' pending' : '') + '" data-id="' + p.id + '" data-title="' + cardTitle + '" data-tag="' + cardTag + '" data-videos="' + videoList.join(',') + '">' +
+          '<div class="work-thumb' + fitClass + '" style="--aspect:' + aspect + '; --fit:' + fit + ';" oncontextmenu="return false;">' +
+          '<img src="' + p.thumb + '" alt="' + cardTitle + '" loading="lazy" decoding="async">' +
+          (previewVideo ? '<video class="work-video" src="' + previewVideo + '" muted loop playsinline preload="none" poster="' + p.thumb + '" controlsList="nodownload noremoteplayback" oncontextmenu="return false;"></video>' : '') +
+          '<div class="skipshoot-watermark"><img src="assets/logo-mark-dark.png" alt="" /><span>SkipShoot</span></div>' +
+          (pending ? '' :
+            '<button class="watch-full-btn" title="Watch Full Video">▶ Watch Full Video</button>' +
+            '<button class="media-btn small expand-btn" aria-label="Expand video" title="Expand">' + expandIcon + '</button>'
+          ) +
+          '</div>' +
+          '<div class="work-body">' +
+          (p.tag ? '<span class="work-tag">' + p.tag + '</span>' : '') +
+          '<h3>' + (p.title || 'Untitled Project') + '</h3>' +
+          (p.description ? '<p>' + p.description + '</p>' : '') +
+          '</div>' +
+          '</div>'
+        );
+      };
+
       // RENDER PORTFOLIO GRID WITH ASPECT RATIO & ADMIN CONTROLS
       window.renderPortfolioGrid = function () {
         const grid = document.getElementById('work-grid');
         if (!grid) return;
 
         let projects = window.getProjects();
+
+        // Filter out archived projects from public website
+        const publicProjects = projects.filter(p => !p.archived);
+
         // Silent automatic filtering for international visitors (zero public UI buttons or text)
         const lang = (navigator.language || navigator.userLanguage || '').toLowerCase();
         const isLocalRegion = lang.includes('ur') || lang.includes('pk');
+        let filtered = publicProjects;
         if (!isLocalRegion && !window.isAdminLoggedIn()) {
-          const intlProjects = projects.filter(p => p.audience === 'international');
-          if (intlProjects.length > 0) projects = intlProjects;
+          const intlProjects = publicProjects.filter(p => p.audience === 'international');
+          if (intlProjects.length > 0) filtered = intlProjects;
         }
 
-        const isAdmin = window.isAdminLoggedIn();
+        // Show featured projects on main page grid (default to all if none flagged)
+        const featuredProjects = filtered.filter(p => p.featured !== false);
+        const displayProjects = featuredProjects.length > 0 ? featuredProjects : filtered;
 
-        const expandIcon =
-          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M9 3H3v6M15 3h6v6M21 15v6h-6M3 15v6h6" stroke="#F5F3EF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        grid.innerHTML = displayProjects.map(window.createProjectCardHTML).join('');
 
-        grid.innerHTML = projects.map(function (p) {
-          const videoList = p.video ? (Array.isArray(p.video) ? p.video : [p.video]) : [];
-          const firstVideo = videoList[0] || '';
-          const pending = videoList.length === 0;
-          const aspect = p.aspect || '9/16';
-          const fit = p.fit || 'cover';
-          const fitClass = fit === 'contain' ? ' fit-contain' : '';
-
-          return (
-            '<div class="work-card' + (pending ? ' pending' : '') + '" data-id="' + p.id + '" data-title="' + p.title.replace(/"/g, '&quot;') + '" data-tag="' + p.tag.replace(/"/g, '&quot;') + '" data-videos="' + videoList.join(',') + '">' +
-            '<div class="work-thumb' + fitClass + '" style="--aspect:' + aspect + '; --fit:' + fit + ';" oncontextmenu="return false;">' +
-            '<img src="' + p.thumb + '" alt="' + p.title + '" loading="lazy" decoding="async">' +
-            (firstVideo ? '<video class="work-video" src="' + firstVideo + '" muted loop playsinline preload="none" poster="' + p.thumb + '" controlsList="nodownload noremoteplayback" oncontextmenu="return false;"></video>' : '') +
-            '<div class="skipshoot-watermark"><img src="assets/logo-mark-dark.png" alt="" /><span>SkipShoot</span></div>' +
-            (pending ? '' :
-              '<button class="watch-full-btn" title="Watch Full Video">▶ Watch Full Video</button>' +
-              '<button class="media-btn small expand-btn" aria-label="Expand video" title="Expand">' + expandIcon + '</button>'
-            ) +
-            '</div>' +
-            '<div class="work-body">' +
-            '<span class="work-tag">' + p.tag + '</span>' +
-            '<h3>' + p.title + '</h3>' +
-            '<p>' + p.description + '</p>' +
-            '</div>' +
-            '</div>'
-          );
-        }).join('');
+        // Update View All Projects button counter & display
+        const viewAllWrap = document.getElementById('view-all-projects-wrap');
+        const countEl = document.getElementById('total-projects-count');
+        if (countEl) countEl.textContent = publicProjects.length;
+        if (viewAllWrap) {
+          viewAllWrap.style.display = publicProjects.length > 0 ? 'block' : 'none';
+        }
 
         if (typeof window.wireGridCards === 'function') {
           window.wireGridCards();
@@ -2697,6 +2823,7 @@
 
       let currentList = [];
       let currentIndex = 0;
+      let currentLightboxProjectId = '';
 
       function showIndex() {
         lightboxVideo.src = currentList[currentIndex];
@@ -2714,15 +2841,21 @@
       function getFocusable() {
         return Array.from(lightbox.querySelectorAll('button')).filter(el => el.offsetParent !== null || el.classList.contains('visible') || el === lightboxClose);
       }
-      function openLightbox(list, startIndex, title, tag) {
+      function openLightbox(list, startIndex, title, tag, projectId) {
         currentList = list;
         currentIndex = startIndex || 0;
+        currentLightboxProjectId = projectId || '';
         lastFocused = document.activeElement;
 
         const titleEl = document.getElementById('lightbox-title');
         const tagEl = document.getElementById('lightbox-tag');
         if (titleEl) titleEl.textContent = title || 'SkipShoot Video';
         if (tagEl) tagEl.textContent = tag || 'Selected Work';
+
+        // Update URL hash for direct sharing (e.g. #watch=proj_1)
+        if (currentLightboxProjectId) {
+          history.replaceState(null, '', '#watch=' + encodeURIComponent(currentLightboxProjectId));
+        }
 
         // Mute/pause in-page videos so audio doesn't overlap
         const proofVideo = document.getElementById('compare-video');
@@ -2734,10 +2867,15 @@
         showIndex();
         if (lightboxClose) lightboxClose.focus();
       }
+      window.openLightbox = openLightbox;
+
       function closeLightbox() {
         lightboxVideo.pause();
         lightbox.classList.remove('open');
         document.body.style.overflow = '';
+        if (window.location.hash.startsWith('#watch=')) {
+          history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
         if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
       }
       lightbox.addEventListener('keydown', (e) => {
@@ -2751,6 +2889,44 @@
           e.preventDefault(); first.focus();
         }
       });
+
+      // Share Link Button Event Listener
+      const shareBtn = document.getElementById('lightbox-share-btn');
+      const shareTextEl = document.getElementById('share-btn-text');
+
+      if (shareBtn) {
+        shareBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const shareUrl = window.location.origin + window.location.pathname + (currentLightboxProjectId ? ('#watch=' + encodeURIComponent(currentLightboxProjectId)) : '#work');
+
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(shareUrl).then(onCopied).catch(fallbackCopy);
+          } else {
+            fallbackCopy();
+          }
+
+          function fallbackCopy() {
+            const tempInput = document.createElement('input');
+            tempInput.value = shareUrl;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            onCopied();
+          }
+
+          function onCopied() {
+            if (shareTextEl) shareTextEl.textContent = '✓ Link Copied!';
+            shareBtn.style.background = 'var(--gold)';
+            shareBtn.style.color = '#0B0C0D';
+            setTimeout(() => {
+              if (shareTextEl) shareTextEl.textContent = 'Share Link';
+              shareBtn.style.background = 'rgba(245, 243, 239, 0.08)';
+              shareBtn.style.color = 'var(--gold)';
+            }, 2500);
+          }
+        });
+      }
 
       if (prevBtn) prevBtn.addEventListener('click', (e) => { e.stopPropagation(); currentIndex = (currentIndex - 1 + currentList.length) % currentList.length; showIndex(); });
       if (nextBtn) nextBtn.addEventListener('click', (e) => { e.stopPropagation(); currentIndex = (currentIndex + 1) % currentList.length; showIndex(); });
@@ -2794,6 +2970,7 @@
       // wire up every media pane: proof section result pane + every grid card
       function wireMediaPane(pane, video, expandBtn, videoList, alwaysPlaying) {
         const card = pane.closest('.work-card');
+        const cardId = card ? (card.dataset.id || '') : '';
         const cardTitle = card ? (card.dataset.title || '') : '';
         const cardTag = card ? (card.dataset.tag || '') : '';
         const watchFullBtn = pane.querySelector('.watch-full-btn');
@@ -2828,24 +3005,47 @@
           pane.addEventListener('click', (e) => {
             if (e.target.closest('.expand-btn') || e.target.closest('.watch-full-btn')) return;
             e.stopPropagation();
-            openLightbox(videoList, 0, cardTitle, cardTag);
+            openLightbox(videoList, 0, cardTitle, cardTag, cardId);
           });
         }
 
         if (watchFullBtn) {
           watchFullBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            openLightbox(videoList, 0, cardTitle, cardTag);
+            openLightbox(videoList, 0, cardTitle, cardTag, cardId);
           });
         }
 
         if (expandBtn) {
           expandBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            openLightbox(videoList, 0, cardTitle, cardTag);
+            openLightbox(videoList, 0, cardTitle, cardTag, cardId);
           });
         }
       }
+
+      // Deep Linking Auto-Open Handler (#watch=proj_x)
+      function checkDeepLink() {
+        const hash = window.location.hash;
+        if (hash && hash.startsWith('#watch=')) {
+          const targetId = decodeURIComponent(hash.replace('#watch=', ''));
+          if (targetId) {
+            const projects = (typeof window.getProjects === 'function') ? window.getProjects() : [];
+            const match = projects.find(p => p.id === targetId || (p.title && p.title.toLowerCase().replace(/[^a-z0-9]/g, '-') === targetId.toLowerCase()));
+            if (match) {
+              const videoList = match.video ? (Array.isArray(match.video) ? match.video : [match.video]) : [];
+              if (videoList.length > 0) {
+                openLightbox(videoList, 0, match.title, match.tag, match.id);
+              }
+            }
+          }
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', () => setTimeout(checkDeepLink, 400));
+      window.addEventListener('hashchange', () => {
+        if (window.location.hash.startsWith('#watch=')) checkDeepLink();
+      });
 
       // proof section (Revivaa hero comparison) — always playing, no hover-gate
       const proofPane = document.getElementById('compare-result');
@@ -3269,18 +3469,18 @@
         <input type="hidden" id="project-id-input" />
 
         <div class="form-group">
-          <label for="project-title-input">Project Title</label>
+          <label for="project-title-input">Project Title <span style="color:var(--gold);">*</span></label>
           <input type="text" id="project-title-input" placeholder="e.g. Revivaa Oil" required />
         </div>
 
         <div class="form-group">
-          <label for="project-tag-input">Tagline / Main Line (Eyebrow)</label>
-          <input type="text" id="project-tag-input" placeholder="e.g. Skincare — 15s Ad" required />
+          <label for="project-tag-input">Tagline / Eyebrow <span style="font-weight:normal; opacity:0.6; text-transform:none;">(Optional)</span></label>
+          <input type="text" id="project-tag-input" placeholder="e.g. Skincare — 15s Ad (Optional)" />
         </div>
 
         <div class="form-group">
-          <label for="project-desc-input">Description</label>
-          <textarea id="project-desc-input" placeholder="Enter full project description..." rows="3" required></textarea>
+          <label for="project-desc-input">Description <span style="font-weight:normal; opacity:0.6; text-transform:none;">(Optional)</span></label>
+          <textarea id="project-desc-input" placeholder="Enter project description... (Optional)" rows="3"></textarea>
         </div>
 
         <div class="form-group-row">
@@ -3302,6 +3502,20 @@
         </div>
 
         <div class="form-group" style="flex-direction:row; align-items:center; gap:8px; margin-top:4px;">
+          <input type="checkbox" id="project-featured-input" style="width:auto; cursor:pointer;" checked />
+          <label for="project-featured-input" style="cursor:pointer; text-transform:none; font-size:0.85rem; color:var(--ink); font-weight:600;">
+            ⭐ Show on Main Landing Page Grid (Featured)
+          </label>
+        </div>
+
+        <div class="form-group" style="flex-direction:row; align-items:center; gap:8px; margin-top:2px;">
+          <input type="checkbox" id="project-archive-input" style="width:auto; cursor:pointer;" />
+          <label for="project-archive-input" style="cursor:pointer; text-transform:none; font-size:0.85rem; color:var(--ink-muted);">
+            📦 Archive Project — Hide from public website completely (kept in Admin only)
+          </label>
+        </div>
+
+        <div class="form-group" style="flex-direction:row; align-items:center; gap:8px; margin-top:2px;">
           <input type="checkbox" id="project-audience-input" style="width:auto; cursor:pointer;" />
           <label for="project-audience-input" style="cursor:pointer; text-transform:none; font-size:0.85rem; color:var(--ink);">
             🌐 International Audience Only (English) — Hide Urdu/local clips when filtered
@@ -3310,7 +3524,14 @@
 
         <div class="form-group">
           <label>Thumbnail Image</label>
-          <input type="file" id="project-thumb-file" accept="image/*" />
+          <div class="drop-zone" id="thumb-drop-zone">
+            <div class="drop-zone-content">
+              <span class="drop-icon">🖼️</span>
+              <span class="drop-text">Drag & drop cover image here, or <strong>browse file</strong></span>
+              <span class="drop-hint">PNG, JPG, WebP (or paste asset path below)</span>
+            </div>
+            <input type="file" id="project-thumb-file" accept="image/*" class="drop-zone-file" />
+          </div>
           <input type="text" id="project-thumb-path" placeholder="Or asset path e.g. assets/revivaa-result.png" style="margin-top:6px;" />
           <div id="thumb-file-info" style="font-family:var(--font-mono); font-size:0.7rem; color:var(--teal); margin-top:4px;"></div>
           <div id="thumb-preview-box" style="margin-top:10px; display:none; align-items:center; gap:12px; background:rgba(245,243,239,0.03); padding:8px 12px; border-radius:8px; border:1px solid var(--line);">
@@ -3323,7 +3544,14 @@
 
         <div class="form-group">
           <label>Video File</label>
-          <input type="file" id="project-video-file" accept="video/*" />
+          <div class="drop-zone" id="video-drop-zone">
+            <div class="drop-zone-content">
+              <span class="drop-icon">🎬</span>
+              <span class="drop-text">Drag & drop master video file here, or <strong>browse file</strong></span>
+              <span class="drop-hint">MP4, MOV, WebM (Cloud CDN auto-compresses on drop/upload)</span>
+            </div>
+            <input type="file" id="project-video-file" accept="video/*" class="drop-zone-file" />
+          </div>
           <input type="text" id="project-video-path" placeholder="Or asset path e.g. assets/revivaa-result.mp4" style="margin-top:6px;" />
           <div id="video-file-info" style="font-family:var(--font-mono); font-size:0.7rem; color:var(--teal); margin-top:4px;"></div>
           
@@ -3353,6 +3581,21 @@
           <button type="submit" class="btn btn-primary">Save Project</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- 3B. Full Portfolio Grid Modal -->
+  <div class="admin-modal" id="all-projects-modal" style="z-index: 9999;">
+    <div class="admin-modal-box admin-modal-wide" style="max-width: 1100px; width: 94%; max-height: 90vh; padding: 28px;">
+      <button aria-label="Close modal" class="admin-modal-close" id="all-projects-close">&times;</button>
+      <div style="margin-bottom: 24px; text-align: left;">
+        <span class="eyebrow" style="color: var(--gold);">COMPLETE PORTFOLIO</span>
+        <h3 style="font-size: 1.8rem; margin-top: 4px; margin-bottom: 6px;">All Video Projects</h3>
+        <p style="color: var(--ink-muted); font-size: 0.9rem; margin-bottom: 0;">Explore every project and creative teaser in full high-resolution.</p>
+      </div>
+      <div class="work-grid" id="all-projects-grid">
+        <!-- Rendered dynamically with 10s teaser previews & lightbox triggers -->
+      </div>
     </div>
   </div>
 
@@ -3726,6 +3969,40 @@
         });
       }
 
+      // --- DRAG AND DROP FILE UPLOAD HANDLERS ---
+      function setupDropZone(dropZoneId, fileInputId) {
+        const zone = document.getElementById(dropZoneId);
+        const input = document.getElementById(fileInputId);
+        if (!zone || !input) return;
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+          zone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.add('drag-over');
+          }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+          zone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.remove('drag-over');
+          }, false);
+        });
+
+        zone.addEventListener('drop', (e) => {
+          const dt = e.dataTransfer;
+          if (dt && dt.files && dt.files.length > 0) {
+            input.files = dt.files;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        });
+      }
+
+      setupDropZone('thumb-drop-zone', 'project-thumb-file');
+      setupDropZone('video-drop-zone', 'project-video-file');
+
       function openLogin() {
         loginError.classList.remove('visible');
         passInput.value = '';
@@ -3884,21 +4161,29 @@
           const fit = p.fit || 'cover';
           const fitClass = fit === 'contain' ? ' fit-contain' : '';
           const aspectLabel = aspect === '1/1' ? '1:1 Square' : (aspect === '16/9' ? '16:9 Widescreen' : '9:16 Portrait');
+          const isFeatured = p.featured !== false;
+          const isArchived = p.archived === true;
+
+          const badgeHTML = isArchived
+            ? '<span style="color:#FFB800; font-size:0.7rem; font-family:var(--font-mono); font-weight:700;">📦 Archived (Hidden from Site)</span>'
+            : (isFeatured ? '<span style="color:var(--gold); font-size:0.7rem; font-family:var(--font-mono); font-weight:700;">⭐ Featured on Main Grid</span>' : '<span style="color:var(--ink-faint); font-size:0.7rem; font-family:var(--font-mono);">📁 All Projects Only</span>');
 
           return (
-            '<div class="admin-storycard" data-id="' + p.id + '" data-index="' + i + '" draggable="true">' +
+            '<div class="admin-storycard' + (isArchived ? ' archived' : '') + '" data-id="' + p.id + '" data-index="' + i + '" draggable="true" style="' + (isArchived ? 'opacity:0.75; border-style:dashed;' : '') + '">' +
             '<span class="admin-aspect-pill">' + aspectLabel + '</span>' +
             '<div class="admin-storythumb' + fitClass + '" style="--aspect:' + aspect + '; --fit:' + fit + ';" onclick="openAdminEdit(\'' + p.id + '\')">' +
             '<img src="' + p.thumb + '" alt="' + p.title + '">' +
             '</div>' +
             '<div class="admin-storycard-body">' +
-            '<span class="admin-storycard-tag">' + p.tag + '</span>' +
-            '<h4>' + p.title + '</h4>' +
-            '<p>' + p.description + '</p>' +
+            '<div style="margin-bottom:6px;">' + badgeHTML + '</div>' +
+            (p.tag ? '<span class="admin-storycard-tag">' + p.tag + '</span>' : '') +
+            '<h4>' + (p.title || 'Untitled Project') + '</h4>' +
+            (p.description ? '<p>' + p.description + '</p>' : '') +
             '<div class="admin-storycard-bar">' +
             '<span class="admin-drag-badge" title="Drag card to reorder">⠿ Drag</span>' +
             '<div class="admin-row-actions" style="flex-wrap:wrap;">' +
             '<button class="btn-icon" onclick="event.stopPropagation(); openAdminEdit(\'' + p.id + '\')">✏️ Edit</button>' +
+            '<button class="btn-icon" onclick="event.stopPropagation(); toggleArchiveAdminProject(\'' + p.id + '\')">' + (isArchived ? '📤 Unarchive' : '📦 Archive') + '</button>' +
             (p.video ? '<button class="btn-icon" onclick="event.stopPropagation(); downloadAdminMedia(\'' + p.video + '\', \'' + p.title.replace(/'/g, "\\'") + '\')">📥 Download MP4</button>' : '') +
             '<button class="btn-icon delete" onclick="event.stopPropagation(); deleteAdminProject(\'' + p.id + '\')">🗑️ Delete</button>' +
             '</div>' +
@@ -3910,6 +4195,16 @@
 
         attachAdminDragAndDrop();
       }
+
+      window.toggleArchiveAdminProject = function (id) {
+        let projects = window.getProjects();
+        const idx = projects.findIndex(p => p.id === id);
+        if (idx >= 0) {
+          projects[idx].archived = !projects[idx].archived;
+          window.saveProjects(projects);
+          renderAdminList();
+        }
+      };
 
       window.downloadAdminMedia = function (url, title) {
         if (!url) {
@@ -3927,6 +4222,8 @@
       };
 
       const audienceInput = document.getElementById('project-audience-input');
+      const featuredInput = document.getElementById('project-featured-input');
+      const archiveInput = document.getElementById('project-archive-input');
 
       // Global Action Helpers
       window.openAdminEdit = function (id) {
@@ -3954,6 +4251,8 @@
           thumbPathInput.value = p.thumb || '';
           videoPathInput.value = p.video || '';
           if (audienceInput) audienceInput.checked = p.audience === 'international';
+          if (featuredInput) featuredInput.checked = p.featured !== false;
+          if (archiveInput) archiveInput.checked = p.archived === true;
 
           showThumbPreview(p.thumb);
           if (p.video) setupVideoScrubber(p.video);
@@ -3969,6 +4268,8 @@
           thumbPathInput.value = '';
           videoPathInput.value = '';
           if (audienceInput) audienceInput.checked = false;
+          if (featuredInput) featuredInput.checked = true;
+          if (archiveInput) archiveInput.checked = false;
 
           if (thumbPreviewBox) thumbPreviewBox.style.display = 'none';
           if (scrubberContainer) scrubberContainer.style.display = 'none';
@@ -3978,7 +4279,7 @@
       };
 
       window.deleteAdminProject = function (id) {
-        if (!confirm('Are you sure you want to delete this project?')) return;
+        if (!confirm('Are you sure you want to delete this project permanently?')) return;
         let projects = window.getProjects();
         projects = projects.filter(p => p.id !== id);
         window.saveProjects(projects);
@@ -4013,6 +4314,8 @@
             description: descInput.value.trim(),
             aspect: aspectInput.value,
             fit: fitInput.value,
+            featured: (featuredInput && featuredInput.checked) !== false,
+            archived: (archiveInput && archiveInput.checked) === true,
             audience: (audienceInput && audienceInput.checked) ? 'international' : 'all',
             thumb: thumbFinal,
             video: videoFinal
@@ -4036,6 +4339,42 @@
       if (editCancel) editCancel.addEventListener('click', function () { editModal.classList.remove('open'); });
       if (dashClose) dashClose.addEventListener('click', closeDashboard);
       if (loginClose) loginClose.addEventListener('click', closeLogin);
+
+      // --- FULL PORTFOLIO GRID MODAL HANDLER ---
+      window.openAllProjectsModal = function () {
+        const modal = document.getElementById('all-projects-modal');
+        const grid = document.getElementById('all-projects-grid');
+        if (!modal || !grid) return;
+
+        let projects = window.getProjects();
+        // Exclude archived projects from public all-projects view
+        let publicProjects = projects.filter(p => !p.archived);
+
+        const lang = (navigator.language || navigator.userLanguage || '').toLowerCase();
+        const isLocalRegion = lang.includes('ur') || lang.includes('pk');
+        if (!isLocalRegion && !window.isAdminLoggedIn()) {
+          const intlProjects = publicProjects.filter(p => p.audience === 'international');
+          if (intlProjects.length > 0) publicProjects = intlProjects;
+        }
+
+        grid.innerHTML = publicProjects.map(window.createProjectCardHTML).join('');
+        modal.classList.add('open');
+
+        if (typeof window.wireGridCards === 'function') {
+          window.wireGridCards();
+        }
+      };
+
+      const viewAllBtn = document.getElementById('view-all-projects-btn');
+      const allProjectsClose = document.getElementById('all-projects-close');
+      const allProjectsModal = document.getElementById('all-projects-modal');
+
+      if (viewAllBtn) {
+        viewAllBtn.addEventListener('click', window.openAllProjectsModal);
+      }
+      if (allProjectsClose && allProjectsModal) {
+        allProjectsClose.addEventListener('click', () => allProjectsModal.classList.remove('open'));
+      }
 
       // Export Code Modal
       if (exportBtn) {
