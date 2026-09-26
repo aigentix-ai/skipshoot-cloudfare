@@ -1,0 +1,8 @@
+{
+  "name": "skipshopt-site",
+  "version": "1.0.0",
+  "description": "Skipshopt Website",
+  "scripts": {
+    "deploy": "node deploy.js"
+  }
+}

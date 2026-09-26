@@ -1,0 +1,5 @@
+[build]
+  publish = "."
+
+[site]
+  site_id = "438156a3-df5f-4568-a1c0-77be1b21aeb5"
