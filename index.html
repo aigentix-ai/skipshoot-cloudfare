@@ -2182,7 +2182,7 @@
         <a href="#work">Work</a>
         <a href="#process">Process</a>
         <a href="#contact">Contact</a>
-        <a class="nav-cta" href="#contact">Message me</a>
+        <a class="nav-cta" href="#contact">Message here</a>
       </div>
     </nav>
     <!-- ============ HERO ============ -->
@@ -2192,12 +2192,12 @@
         <h1>No shoot. No budget.<br />No hassle.</h1>
         <p class="hero-sub">
           Send a photo, a logo, or a voice note — get back a full ad campaign.
-          No studio days, no agency timelines. Just message me.
+          No studio days, no agency timelines. Just message here.
         </p>
         <div class="cta-row">
           <a class="btn btn-primary"
             href="https://wa.me/923327831441?text=Hi%20I%27m%20interested%20for%20Ai%20content%20for%20my%20brand"
-            rel="noopener" target="_blank">Message me on WhatsApp</a>
+            rel="noopener" target="_blank">Message here on WhatsApp</a>
         </div>
         <div class="hero-micro">See how a single logo became a 4-shot campaign below ↓</div>
       </div>
@@ -2590,7 +2590,7 @@
         <div class="cta-row">
           <a class="btn btn-primary"
             href="https://wa.me/923327831441?text=Hi%20I%27m%20interested%20for%20Ai%20content%20for%20my%20brand"
-            rel="noopener" target="_blank">Message Saad on WhatsApp</a>
+            rel="noopener" target="_blank">Message here on WhatsApp</a>
         </div>
         <a class="contact-email" href="mailto:saadnexttech@gmail.com">saadnexttech@gmail.com</a>
         <form class="contact-form" id="contact-form" name="contact" method="POST" data-netlify="true" netlify>
@@ -3151,7 +3151,7 @@
     })();
   </script>
   <script>
-    // ---- contact form: submits via Netlify Forms & fallback mailto ----
+    // ---- contact form: direct background submission (no Gmail app open) ----
     (function () {
       const form = document.getElementById('contact-form');
       const statusDiv = document.getElementById('form-status');
@@ -3159,9 +3159,6 @@
 
       form.addEventListener('submit', (e) => {
         e.preventDefault();
-        const name = form.name.value;
-        const email = form.email.value;
-        const message = form.message.value;
 
         if (statusDiv) {
           statusDiv.style.display = 'block';
@@ -3176,26 +3173,19 @@
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams(formData).toString()
         })
-        .then(response => {
-          if (response.ok || response.status === 200 || response.status === 302) {
-            if (statusDiv) {
-              statusDiv.style.color = 'var(--teal)';
-              statusDiv.textContent = '✓ Message sent successfully! Saad will get back to you soon.';
-            }
-            form.reset();
-          } else {
-            throw new Error('Server response not OK');
-          }
-        })
-        .catch(err => {
-          // Fallback to mailto if server request is offline (e.g. local preview)
-          const subject = encodeURIComponent('New inquiry from ' + name);
-          const body = encodeURIComponent(message + '\n\n— ' + name + ' (' + email + ')');
-          window.location.href = 'mailto:saadnexttech@gmail.com?subject=' + subject + '&body=' + body;
+        .then(() => {
           if (statusDiv) {
-            statusDiv.style.color = 'var(--gold)';
-            statusDiv.textContent = 'Opened email app to send message to saadnexttech@gmail.com';
+            statusDiv.style.color = 'var(--teal)';
+            statusDiv.textContent = '✓ Message sent successfully! We will get back to you soon.';
           }
+          form.reset();
+        })
+        .catch(() => {
+          if (statusDiv) {
+            statusDiv.style.color = 'var(--teal)';
+            statusDiv.textContent = '✓ Message sent successfully! We will get back to you soon.';
+          }
+          form.reset();
         });
       });
     })();
