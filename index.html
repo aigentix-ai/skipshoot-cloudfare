@@ -996,12 +996,6 @@
       inset: 0;
       z-index: 10000;
       background: rgba(11, 12, 13, 0.96);
-    }
-
-    #admin-edit-modal,
-    #admin-export-modal,
-    #admin-pass-modal {
-      z-index: 10100;
       backdrop-filter: blur(16px);
       display: none;
       flex-direction: column;
@@ -1011,6 +1005,12 @@
 
     .admin-dashboard-modal.open {
       display: flex;
+    }
+
+    #admin-edit-modal,
+    #admin-export-modal,
+    #admin-pass-modal {
+      z-index: 10100;
     }
 
     .admin-dash-container {
@@ -4793,51 +4793,59 @@
       // Visual Storyboard Grid Renderer
       function renderAdminList() {
         if (!projectsListEl) return;
-        const projects = window.getProjects();
+        try {
+          const projects = window.getProjects();
 
-        if (projects.length === 0) {
-          projectsListEl.innerHTML = '<div style="text-align:center; padding:40px; color:var(--ink-muted); grid-column:1/-1;">No projects found. Click "+ Add Project" to create one.</div>';
-          return;
+          if (!projects || projects.length === 0) {
+            projectsListEl.innerHTML = '<div style="text-align:center; padding:40px; color:var(--ink-muted); grid-column:1/-1;">No projects found. Click "+ Add Project" to create one.</div>';
+            return;
+          }
+
+          projectsListEl.innerHTML = projects.map(function (p, i) {
+            const aspect = p.aspect || '9/16';
+            const fit = p.fit || 'cover';
+            const fitClass = fit === 'contain' ? ' fit-contain' : '';
+            const aspectLabel = aspect === '1/1' ? '1:1 Square' : (aspect === '16/9' ? '16:9 Widescreen' : '9:16 Portrait');
+            const isFeatured = p.featured !== false;
+            const isArchived = p.archived === true;
+
+            const badgeHTML = isArchived
+              ? '<span style="color:#FFB800; font-size:0.7rem; font-family:var(--font-mono); font-weight:700;">📦 Archived (Hidden from Site)</span>'
+              : (isFeatured ? '<span style="color:var(--gold); font-size:0.7rem; font-family:var(--font-mono); font-weight:700;">⭐ Featured on Main Grid</span>' : '<span style="color:var(--ink-faint); font-size:0.7rem; font-family:var(--font-mono);">📁 All Projects Only</span>');
+
+            const safeTitle = (p.title || 'Untitled Project').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const firstVideo = Array.isArray(p.video) ? (p.video[0] || '') : (p.video || '');
+            const thumbSrc = p.thumb || 'assets/logo-mark-dark.png';
+
+            return (
+              '<div class="admin-storycard' + (isArchived ? ' archived' : '') + '" data-id="' + p.id + '" data-index="' + i + '" draggable="true" style="' + (isArchived ? 'opacity:0.75; border-style:dashed;' : '') + '">' +
+              '<span class="admin-aspect-pill">' + aspectLabel + '</span>' +
+              '<div class="admin-storythumb' + fitClass + '" style="--aspect:' + aspect + '; --fit:' + fit + ';" onclick="openAdminEdit(\'' + p.id + '\')">' +
+              '<img src="' + thumbSrc + '" alt="' + safeTitle + '">' +
+              '</div>' +
+              '<div class="admin-storycard-body">' +
+              '<div style="margin-bottom:6px;">' + badgeHTML + '</div>' +
+              (p.tag ? '<span class="admin-storycard-tag">' + p.tag + '</span>' : '') +
+              '<h4>' + (p.title || 'Untitled Project') + '</h4>' +
+              (p.description ? '<p>' + p.description + '</p>' : '') +
+              '<div class="admin-storycard-bar">' +
+              '<span class="admin-drag-badge" title="Drag card to reorder">⠿ Drag</span>' +
+              '<div class="admin-row-actions" style="flex-wrap:wrap;">' +
+              '<button class="btn-icon" onclick="event.stopPropagation(); openAdminEdit(\'' + p.id + '\')">✏️ Edit</button>' +
+              '<button class="btn-icon" onclick="event.stopPropagation(); toggleArchiveAdminProject(\'' + p.id + '\')">' + (isArchived ? '📤 Unarchive' : '📦 Archive') + '</button>' +
+              (firstVideo ? '<button class="btn-icon" onclick="event.stopPropagation(); downloadAdminMedia(\'' + firstVideo + '\', \'' + safeTitle + '\')">📥 Download MP4</button>' : '') +
+              '<button class="btn-icon delete" onclick="event.stopPropagation(); deleteAdminProject(\'' + p.id + '\')">🗑️ Delete</button>' +
+              '</div>' +
+              '</div>' +
+              '</div>' +
+              '</div>'
+            );
+          }).join('');
+
+          attachAdminDragAndDrop();
+        } catch (err) {
+          console.error('Error rendering admin list:', err);
         }
-
-        projectsListEl.innerHTML = projects.map(function (p, i) {
-          const aspect = p.aspect || '9/16';
-          const fit = p.fit || 'cover';
-          const fitClass = fit === 'contain' ? ' fit-contain' : '';
-          const aspectLabel = aspect === '1/1' ? '1:1 Square' : (aspect === '16/9' ? '16:9 Widescreen' : '9:16 Portrait');
-          const isFeatured = p.featured !== false;
-          const isArchived = p.archived === true;
-
-          const badgeHTML = isArchived
-            ? '<span style="color:#FFB800; font-size:0.7rem; font-family:var(--font-mono); font-weight:700;">📦 Archived (Hidden from Site)</span>'
-            : (isFeatured ? '<span style="color:var(--gold); font-size:0.7rem; font-family:var(--font-mono); font-weight:700;">⭐ Featured on Main Grid</span>' : '<span style="color:var(--ink-faint); font-size:0.7rem; font-family:var(--font-mono);">📁 All Projects Only</span>');
-
-          return (
-            '<div class="admin-storycard' + (isArchived ? ' archived' : '') + '" data-id="' + p.id + '" data-index="' + i + '" draggable="true" style="' + (isArchived ? 'opacity:0.75; border-style:dashed;' : '') + '">' +
-            '<span class="admin-aspect-pill">' + aspectLabel + '</span>' +
-            '<div class="admin-storythumb' + fitClass + '" style="--aspect:' + aspect + '; --fit:' + fit + ';" onclick="openAdminEdit(\'' + p.id + '\')">' +
-            '<img src="' + p.thumb + '" alt="' + p.title + '">' +
-            '</div>' +
-            '<div class="admin-storycard-body">' +
-            '<div style="margin-bottom:6px;">' + badgeHTML + '</div>' +
-            (p.tag ? '<span class="admin-storycard-tag">' + p.tag + '</span>' : '') +
-            '<h4>' + (p.title || 'Untitled Project') + '</h4>' +
-            (p.description ? '<p>' + p.description + '</p>' : '') +
-            '<div class="admin-storycard-bar">' +
-            '<span class="admin-drag-badge" title="Drag card to reorder">⠿ Drag</span>' +
-            '<div class="admin-row-actions" style="flex-wrap:wrap;">' +
-            '<button class="btn-icon" onclick="event.stopPropagation(); openAdminEdit(\'' + p.id + '\')">✏️ Edit</button>' +
-            '<button class="btn-icon" onclick="event.stopPropagation(); toggleArchiveAdminProject(\'' + p.id + '\')">' + (isArchived ? '📤 Unarchive' : '📦 Archive') + '</button>' +
-            (p.video ? '<button class="btn-icon" onclick="event.stopPropagation(); downloadAdminMedia(\'' + p.video + '\', \'' + p.title.replace(/'/g, "\\'") + '\')">📥 Download MP4</button>' : '') +
-            '<button class="btn-icon delete" onclick="event.stopPropagation(); deleteAdminProject(\'' + p.id + '\')">🗑️ Delete</button>' +
-            '</div>' +
-            '</div>' +
-            '</div>' +
-            '</div>'
-          );
-        }).join('');
-
-        attachAdminDragAndDrop();
       }
 
       window.toggleArchiveAdminProject = function (id) {
