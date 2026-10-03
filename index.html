@@ -791,7 +791,7 @@
     .admin-modal {
       position: fixed;
       inset: 0;
-      z-index: 300;
+      z-index: 10000;
       background: rgba(11, 12, 13, 0.82);
       backdrop-filter: blur(12px);
       display: none;
@@ -994,8 +994,14 @@
     .admin-dashboard-modal {
       position: fixed;
       inset: 0;
-      z-index: 290;
+      z-index: 10000;
       background: rgba(11, 12, 13, 0.96);
+    }
+
+    #admin-edit-modal,
+    #admin-export-modal,
+    #admin-pass-modal {
+      z-index: 10100;
       backdrop-filter: blur(16px);
       display: none;
       flex-direction: column;
@@ -1670,6 +1676,7 @@
     }
 
     .work-card:hover .watch-full-btn,
+    .work-thumb.video-active .watch-full-btn,
     .watch-full-btn.visible {
       opacity: 1;
       transform: translateX(-50%) translateY(0);
@@ -1680,12 +1687,19 @@
       transform: translateX(-50%) translateY(-2px) scale(1.04);
     }
 
+    @media (max-width: 768px) {
+      .watch-full-btn {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
     /* ---------- LUXURY REDESIGNED LIGHTBOX ---------- */
 
     .lightbox {
       position: fixed;
       inset: 0;
-      z-index: 200;
+      z-index: 100000;
       display: none;
       flex-direction: column;
       align-items: center;
@@ -1706,7 +1720,7 @@
       justify-content: space-between;
       align-items: flex-end;
       margin-bottom: 12px;
-      z-index: 202;
+      z-index: 100002;
       transition: width 0.25s ease;
       box-sizing: border-box;
     }
@@ -1870,7 +1884,7 @@
       position: fixed;
       top: 24px;
       right: 24px;
-      z-index: 201;
+      z-index: 100005;
       width: 44px;
       height: 44px;
       border-radius: 50%;
@@ -1890,7 +1904,7 @@
       position: fixed;
       top: 50%;
       transform: translateY(-50%);
-      z-index: 201;
+      z-index: 100005;
       width: 48px;
       height: 48px;
       border-radius: 50%;
@@ -1923,7 +1937,7 @@
       bottom: 24px;
       left: 50%;
       transform: translateX(-50%);
-      z-index: 201;
+      z-index: 100005;
       font-family: var(--font-mono);
       font-size: .72rem;
       color: var(--ink-faint);
@@ -3251,6 +3265,7 @@
         return Array.from(lightbox.querySelectorAll('button')).filter(el => el.offsetParent !== null || el.classList.contains('visible') || el === lightboxClose);
       }
       function openLightbox(list, startIndex, title, tag, projectId, aspect) {
+        if (!list || !list.length) return;
         currentList = list;
         currentIndex = startIndex || 0;
         currentLightboxProjectId = projectId || '';
@@ -3271,6 +3286,9 @@
         const proofVideo = document.getElementById('compare-video');
         if (proofVideo) proofVideo.muted = true;
         document.querySelectorAll('.work-thumb').forEach(thumb => resetGridPreview(thumb, true));
+        if (typeof window.clearActiveMobileThumb === 'function') {
+          window.clearActiveMobileThumb();
+        }
 
         lightbox.classList.add('open');
         document.body.style.overflow = 'hidden';
@@ -3290,7 +3308,15 @@
         if (unmuteBtn) unmuteBtn.classList.remove('visible');
 
         lightbox.classList.remove('open');
-        document.body.style.overflow = '';
+
+        const allProjectsModal = document.getElementById('all-projects-modal');
+        const isModalOpen = allProjectsModal && allProjectsModal.classList.contains('open');
+
+        // Only restore body scrolling if the all-projects modal is NOT open!
+        if (!isModalOpen) {
+          document.body.style.overflow = '';
+        }
+
         if (window.location.hash.startsWith('#watch=')) {
           history.replaceState(null, '', window.location.pathname + window.location.search);
         }
@@ -3299,6 +3325,7 @@
           setTimeout(window.updateMobileActiveVideo, 120);
         }
       }
+      window.closeLightbox = closeLightbox;
       lightbox.addEventListener('keydown', (e) => {
         if (e.key !== 'Tab') return;
         const focusable = getFocusable();
@@ -3480,6 +3507,17 @@
           });
         }
 
+        if (card) {
+          const body = card.querySelector('.work-body');
+          if (body) {
+            body.style.cursor = 'pointer';
+            body.addEventListener('click', (e) => {
+              e.stopPropagation();
+              openLightbox(videoList, 0, cardTitle, cardTag, cardId, cardAspect);
+            });
+          }
+        }
+
         if (watchFullBtn) {
           watchFullBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -3555,6 +3593,24 @@
         return window.innerWidth <= 768 || window.matchMedia('(max-width: 768px)').matches;
       }
 
+      function stopAllMainPagePreviews() {
+        if (activeMobileThumb) {
+          resetGridPreview(activeMobileThumb, true);
+          activeMobileThumb = null;
+        }
+        document.querySelectorAll('#work-grid .work-thumb').forEach(thumb => {
+          resetGridPreview(thumb, true);
+        });
+      }
+      window.stopAllMainPagePreviews = stopAllMainPagePreviews;
+
+      window.clearActiveMobileThumb = function () {
+        if (activeMobileThumb) {
+          resetGridPreview(activeMobileThumb, true);
+          activeMobileThumb = null;
+        }
+      };
+
       function updateMobileActiveVideo() {
         if (!isPhoneScreen()) {
           if (activeMobileThumb) {
@@ -3564,7 +3620,7 @@
           return;
         }
 
-        // Don't auto-play grid cards if fullscreen lightbox is open
+        // 1. Don't auto-play grid cards if fullscreen lightbox is open
         if (lightbox && lightbox.classList.contains('open')) {
           if (activeMobileThumb) {
             resetGridPreview(activeMobileThumb, true);
@@ -3573,23 +3629,43 @@
           return;
         }
 
-        const thumbs = Array.from(document.querySelectorAll('.work-thumb:not(#compare-result)'));
-        if (!thumbs.length) return;
+        const allProjectsModal = document.getElementById('all-projects-modal');
+        const isModalOpen = allProjectsModal && allProjectsModal.classList.contains('open');
 
-        const viewportHeight = window.innerHeight;
-        const viewportCenter = viewportHeight / 2;
+        let thumbs = [];
+        let viewportCenter = 0;
+
+        if (isModalOpen) {
+          // If All Projects modal is open, ensure ALL main-page cards are completely stopped!
+          document.querySelectorAll('#work-grid .work-thumb').forEach(thumb => {
+            if (thumb === activeMobileThumb) activeMobileThumb = null;
+            resetGridPreview(thumb, true);
+          });
+
+          // Focus ONLY on cards inside #all-projects-grid
+          thumbs = Array.from(document.querySelectorAll('#all-projects-grid .work-thumb'));
+          viewportCenter = window.innerHeight / 2;
+        } else {
+          // Modal is closed: focus ONLY on #work-grid on the main page
+          thumbs = Array.from(document.querySelectorAll('#work-grid .work-thumb:not(#compare-result)'));
+          viewportCenter = window.innerHeight / 2;
+        }
+
+        if (!thumbs.length) {
+          if (activeMobileThumb) {
+            resetGridPreview(activeMobileThumb, true);
+            activeMobileThumb = null;
+          }
+          return;
+        }
 
         let bestThumb = null;
         let minDistance = Infinity;
 
         thumbs.forEach(thumb => {
-          // If inside a closed modal, ignore
-          const modal = thumb.closest('#all-projects-modal');
-          if (modal && !modal.classList.contains('open')) return;
-
           const rect = thumb.getBoundingClientRect();
           // Must have at least partial visibility in the central viewport area
-          if (rect.bottom > 80 && rect.top < viewportHeight - 80) {
+          if (rect.bottom > 80 && rect.top < window.innerHeight - 80) {
             const thumbCenter = (rect.top + rect.bottom) / 2;
             const dist = Math.abs(thumbCenter - viewportCenter);
             if (dist < minDistance) {
@@ -3642,6 +3718,12 @@
       window.addEventListener('scroll', onMobileScroll, { passive: true });
       window.addEventListener('resize', onMobileScroll, { passive: true });
       window.updateMobileActiveVideo = updateMobileActiveVideo;
+
+      // Also listen to scroll on the modal box inside #all-projects-modal
+      const allProjectsModalBox = document.querySelector('#all-projects-modal .admin-modal-box');
+      if (allProjectsModalBox) {
+        allProjectsModalBox.addEventListener('scroll', onMobileScroll, { passive: true });
+      }
 
       document.addEventListener('DOMContentLoaded', () => {
         if (isPhoneScreen()) {
@@ -4151,7 +4233,7 @@
   </div>
 
   <!-- 3B. Full Portfolio Grid Modal -->
-  <div class="admin-modal" id="all-projects-modal" style="z-index: 9999;">
+  <div class="admin-modal" id="all-projects-modal">
     <div class="admin-modal-box admin-modal-wide" style="max-width: 1100px; width: 94%; max-height: 90vh; padding: 28px;">
       <button aria-label="Close modal" class="admin-modal-close" id="all-projects-close">&times;</button>
       <div style="margin-bottom: 24px; text-align: left;">
@@ -4908,6 +4990,11 @@
         const grid = document.getElementById('all-projects-grid');
         if (!modal || !grid) return;
 
+        // 1. Immediately pause and mute any running main page previews
+        if (typeof window.stopAllMainPagePreviews === 'function') {
+          window.stopAllMainPagePreviews();
+        }
+
         let projects = window.getProjects();
         // Exclude archived projects from public all-projects view
         let publicProjects = projects.filter(p => !p.archived);
@@ -4921,9 +5008,45 @@
 
         grid.innerHTML = publicProjects.map(window.createProjectCardHTML).join('');
         modal.classList.add('open');
+        document.body.style.overflow = 'hidden';
 
         if (typeof window.wireGridCards === 'function') {
           window.wireGridCards();
+        }
+      };
+
+      window.closeAllProjectsModal = function () {
+        const modal = document.getElementById('all-projects-modal');
+        const grid = document.getElementById('all-projects-grid');
+        if (!modal) return;
+
+        // 1. If Fullscreen Lightbox is open, close it cleanly
+        if (typeof window.closeLightbox === 'function') {
+          const lb = document.getElementById('lightbox');
+          if (lb && lb.classList.contains('open')) {
+            window.closeLightbox();
+          }
+        }
+
+        // 2. Pause and reset all videos inside all-projects-grid
+        if (grid) {
+          grid.querySelectorAll('.work-thumb').forEach(thumb => {
+            if (typeof window.resetGridPreview === 'function') {
+              window.resetGridPreview(thumb, true);
+            } else {
+              const v = thumb.querySelector('.work-video');
+              if (v) { v.pause(); v.currentTime = 0; }
+              thumb.classList.remove('video-active');
+            }
+          });
+        }
+
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+
+        // 3. Resume mobile active video tracking on main page
+        if (typeof window.updateMobileActiveVideo === 'function') {
+          setTimeout(window.updateMobileActiveVideo, 120);
         }
       };
 
@@ -4934,9 +5057,27 @@
       if (viewAllBtn) {
         viewAllBtn.addEventListener('click', window.openAllProjectsModal);
       }
-      if (allProjectsClose && allProjectsModal) {
-        allProjectsClose.addEventListener('click', () => allProjectsModal.classList.remove('open'));
+      if (allProjectsClose) {
+        allProjectsClose.addEventListener('click', window.closeAllProjectsModal);
       }
+      if (allProjectsModal) {
+        allProjectsModal.addEventListener('click', function (e) {
+          if (e.target === allProjectsModal) {
+            window.closeAllProjectsModal();
+          }
+        });
+      }
+
+      window.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          const lb = document.getElementById('lightbox');
+          if (lb && lb.classList.contains('open')) {
+            if (typeof window.closeLightbox === 'function') window.closeLightbox();
+          } else if (allProjectsModal && allProjectsModal.classList.contains('open')) {
+            window.closeAllProjectsModal();
+          }
+        }
+      });
 
       // Export Code Modal
       if (exportBtn) {
