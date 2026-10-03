@@ -1,0 +1,11 @@
+node_modules/
+.git/
+.github/
+.netlify/
+package.json
+package-lock.json
+deploy.js
+deploy_package.zip
+.env
+README.md
+*.log
