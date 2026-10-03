@@ -23,8 +23,8 @@ Official codebase for **SkipShoot**, high-performance landing page and portfolio
 │   ├── knm-result.mp4
 │   ├── knm-thumb.png
 │   ├── logo-mark-light.png
-│   ├── omar sample.mp4
-│   ├── omar sample.png
+│   ├── omar-sample.mp4
+│   ├── omar-sample.png
 │   ├── revivaa-result.mp4
 │   ├── spiceshop-result.mp4
 │   ├── thandsup-result-1.mp4

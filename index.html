@@ -1692,18 +1692,22 @@
     }
 
     .lightbox-header-bar {
-      width: min(90vw, 480px);
+      width: 100%;
+      max-width: 460px;
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: flex-end;
       margin-bottom: 12px;
       z-index: 202;
+      transition: width 0.25s ease;
+      box-sizing: border-box;
     }
 
     .lightbox-meta h3 {
       font-size: 1.25rem;
       font-weight: 800;
       color: var(--ink);
+      line-height: 1.2;
     }
 
     .lightbox-meta span {
@@ -1712,6 +1716,8 @@
       color: var(--teal);
       text-transform: uppercase;
       letter-spacing: 0.08em;
+      display: block;
+      margin-bottom: 4px;
     }
 
     .lightbox-share-btn {
@@ -1739,28 +1745,91 @@
 
     .lightbox-frame {
       position: relative;
-      width: min(90vw, 460px);
-      max-height: 72vh;
-      aspect-ratio: 9/16;
-      border-radius: 24px;
+      max-width: min(92vw, 860px);
+      max-height: 78vh;
+      border-radius: 20px;
       overflow: hidden;
       border: 1px solid rgba(245, 243, 239, .22);
       background: #000;
       box-shadow: 0 30px 90px rgba(0, 0, 0, .85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: width 0.25s ease, height 0.25s ease;
+      margin: 0 auto;
     }
 
     .lightbox-frame video {
+      display: block;
       width: 100%;
       height: 100%;
+      max-width: 100%;
+      max-height: 78vh;
       object-fit: contain;
       background: #000;
     }
 
+    .lightbox-spinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(245, 243, 239, 0.15);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: lbSpin 0.8s linear infinite;
+      z-index: 10;
+      pointer-events: none;
+      display: none;
+    }
+
+    .lightbox-spinner.visible {
+      display: block;
+    }
+
+    @keyframes lbSpin {
+      to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    .lightbox-unmute-btn {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 25;
+      background: rgba(11, 12, 13, 0.88);
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      transition: all 0.2s ease;
+    }
+
+    .lightbox-unmute-btn.visible {
+      display: inline-flex;
+    }
+
+    .lightbox-unmute-btn:hover {
+      background: var(--gold);
+      color: #0B0C0D;
+    }
+
     @media (max-width:720px) {
       .lightbox-frame {
-        width: 90vw;
-        max-height: 85vh;
-        border-radius: 20px;
+        max-width: 92vw;
+        max-height: 82vh;
+        border-radius: 18px;
       }
 
       .lightbox-close {
@@ -2173,6 +2242,8 @@
     <div class="lightbox-index" id="lightbox-index"></div>
 
     <div class="lightbox-frame">
+      <div class="lightbox-spinner" id="lightbox-spinner"></div>
+      <button class="lightbox-unmute-btn" id="lightbox-unmute-btn" title="Unmute video">🔊 Click to Unmute</button>
       <video controls controlsList="nodownload noremoteplayback" id="lightbox-video" playsinline oncontextmenu="return false;"></video>
       <div class="skipshoot-watermark">
         <img src="assets/logo-mark-dark.png" alt="" />
@@ -2394,8 +2465,8 @@
           tag: 'Portrait — AI Video',
           title: 'Omar Sample',
           description: 'A single photo turned into a moving, talking presenter shot.',
-          thumb: 'assets/omar sample.png',
-          video: 'assets/omar sample.mp4',
+          thumb: 'assets/omar-sample.png',
+          video: 'assets/omar-sample.mp4',
           aspect: '9/16',
           fit: 'cover'
         },
@@ -2411,14 +2482,20 @@
         }
       ];
 
-      // GLOBAL PROJECTS STORE WITH LOCALSTORAGE PERSISTENCE
+      // GLOBAL PROJECTS STORE WITH AUTOMATIC DATA SYNCHRONIZATION
+      const PROJECTS_DATA_VERSION = 'v5_verified_assets';
+
       window.getProjects = function () {
         try {
+          const storedVer = localStorage.getItem('skipshoot_projects_version');
           const stored = localStorage.getItem('skipshoot_projects_data');
-          if (stored) {
+          if (stored && storedVer === PROJECTS_DATA_VERSION) {
             const parsed = JSON.parse(stored);
             if (Array.isArray(parsed) && parsed.length > 0) return parsed;
           }
+          // Reset / seed with verified projects containing all working video assets
+          localStorage.setItem('skipshoot_projects_version', PROJECTS_DATA_VERSION);
+          localStorage.setItem('skipshoot_projects_data', JSON.stringify(DEFAULT_PROJECTS));
         } catch (e) {
           console.error('Failed to load local projects:', e);
         }
@@ -2427,6 +2504,7 @@
 
       window.saveProjects = function (list) {
         try {
+          localStorage.setItem('skipshoot_projects_version', PROJECTS_DATA_VERSION);
           localStorage.setItem('skipshoot_projects_data', JSON.stringify(list));
         } catch (e) {
           console.error('Failed to save projects:', e);
@@ -2475,10 +2553,10 @@
           '<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M9 3H3v6M15 3h6v6M21 15v6h-6M3 15v6h6" stroke="#F5F3EF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
         return (
-          '<div class="work-card' + (pending ? ' pending' : '') + '" data-id="' + p.id + '" data-title="' + cardTitle + '" data-tag="' + cardTag + '" data-videos="' + videoList.join(',') + '">' +
+          '<div class="work-card' + (pending ? ' pending' : '') + '" data-id="' + p.id + '" data-title="' + cardTitle + '" data-tag="' + cardTag + '" data-aspect="' + aspect + '" data-videos="' + videoList.join(',') + '">' +
           '<div class="work-thumb' + fitClass + '" style="--aspect:' + aspect + '; --fit:' + fit + ';" oncontextmenu="return false;">' +
           '<img src="' + p.thumb + '" alt="' + cardTitle + '" loading="lazy" decoding="async">' +
-          (previewVideo ? '<video class="work-video" src="' + previewVideo + '" muted loop playsinline preload="none" poster="' + p.thumb + '" controlsList="nodownload noremoteplayback" oncontextmenu="return false;"></video>' : '') +
+          (previewVideo ? '<video class="work-video" src="' + encodeURI(previewVideo) + '" muted loop playsinline preload="metadata" poster="' + p.thumb + '" controlsList="nodownload noremoteplayback" oncontextmenu="return false;"></video>' : '') +
           '<div class="skipshoot-watermark"><img src="assets/logo-mark-dark.png" alt="" /><span>SkipShoot</span></div>' +
           (pending ? '' :
             '<button class="watch-full-btn" title="Watch Full Video">▶ Watch Full Video</button>' +
@@ -2826,31 +2904,136 @@
       const prevBtn = document.getElementById('lightbox-prev');
       const nextBtn = document.getElementById('lightbox-next');
       const indexEl = document.getElementById('lightbox-index');
+      const spinner = document.getElementById('lightbox-spinner');
+      const unmuteBtn = document.getElementById('lightbox-unmute-btn');
 
       let currentList = [];
       let currentIndex = 0;
       let currentLightboxProjectId = '';
+      let currentKnownAspect = '9/16';
+
+      function setSpinner(show) {
+        if (spinner) spinner.classList.toggle('visible', !!show);
+      }
+
+      function updateLightboxFrameAspect(knownAspect) {
+        let aspect = 9 / 16;
+        const testAspect = knownAspect || currentKnownAspect;
+        if (testAspect) {
+          const parts = testAspect.split('/');
+          if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+            aspect = parseFloat(parts[0]) / parseFloat(parts[1]);
+          }
+        }
+        if (lightboxVideo && lightboxVideo.videoWidth && lightboxVideo.videoHeight) {
+          aspect = lightboxVideo.videoWidth / lightboxVideo.videoHeight;
+        }
+
+        const maxH = Math.min(window.innerHeight * 0.78, 800);
+        const maxW = Math.min(window.innerWidth * 0.92, 860);
+
+        let frameW = maxH * aspect;
+        let frameH = maxH;
+
+        if (frameW > maxW) {
+          frameW = maxW;
+          frameH = frameW / aspect;
+        }
+
+        const frame = document.querySelector('.lightbox-frame');
+        const headerBar = document.querySelector('.lightbox-header-bar');
+
+        if (frame) {
+          frame.style.width = Math.round(frameW) + 'px';
+          frame.style.height = Math.round(frameH) + 'px';
+        }
+        if (headerBar) {
+          headerBar.style.width = Math.max(Math.round(frameW), Math.min(340, window.innerWidth * 0.92)) + 'px';
+        }
+      }
+
+      window.addEventListener('resize', () => {
+        if (lightbox && lightbox.classList.contains('open')) {
+          updateLightboxFrameAspect();
+        }
+      });
+
+      if (lightboxVideo) {
+        lightboxVideo.addEventListener('loadedmetadata', () => {
+          updateLightboxFrameAspect();
+        });
+
+        lightboxVideo.addEventListener('waiting', () => setSpinner(true));
+        lightboxVideo.addEventListener('canplay', () => setSpinner(false));
+        lightboxVideo.addEventListener('playing', () => setSpinner(false));
+
+        lightboxVideo.addEventListener('volumechange', () => {
+          if (!lightboxVideo.muted && unmuteBtn) {
+            unmuteBtn.classList.remove('visible');
+          }
+        });
+      }
+
+      if (unmuteBtn) {
+        unmuteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (lightboxVideo) {
+            lightboxVideo.muted = false;
+            lightboxVideo.play().catch(() => {});
+          }
+          unmuteBtn.classList.remove('visible');
+        });
+      }
 
       function showIndex() {
-        lightboxVideo.src = currentList[currentIndex];
+        if (!currentList || !currentList.length) return;
+        const rawUrl = currentList[currentIndex] || '';
+        const videoUrl = encodeURI(rawUrl);
+
+        setSpinner(true);
+        if (unmuteBtn) unmuteBtn.classList.remove('visible');
+
+        updateLightboxFrameAspect(currentKnownAspect);
+
+        lightboxVideo.src = videoUrl;
+        lightboxVideo.load();
+
+        // Autoplay attempt: first unmuted with sound, fallback to muted if browser autoplay blocks it
         lightboxVideo.muted = false;
-        lightboxVideo.currentTime = 0;
-        lightboxVideo.play().catch(() => { });
+        const playPromise = lightboxVideo.play();
+        if (playPromise !== undefined) {
+          playPromise.then(() => {
+            setSpinner(false);
+          }).catch(err => {
+            console.warn('Unmuted autoplay blocked by browser policy, playing muted:', err);
+            lightboxVideo.muted = true;
+            lightboxVideo.play().then(() => {
+              setSpinner(false);
+              if (unmuteBtn) unmuteBtn.classList.add('visible');
+            }).catch(() => {
+              setSpinner(false);
+            });
+          });
+        }
+
         const multi = currentList.length > 1;
-        prevBtn.classList.toggle('visible', multi);
-        nextBtn.classList.toggle('visible', multi);
-        indexEl.classList.toggle('visible', multi);
-        indexEl.textContent = (currentIndex + 1) + ' / ' + currentList.length;
+        if (prevBtn) prevBtn.classList.toggle('visible', multi);
+        if (nextBtn) nextBtn.classList.toggle('visible', multi);
+        if (indexEl) {
+          indexEl.classList.toggle('visible', multi);
+          indexEl.textContent = (currentIndex + 1) + ' / ' + currentList.length;
+        }
       }
 
       let lastFocused = null;
       function getFocusable() {
         return Array.from(lightbox.querySelectorAll('button')).filter(el => el.offsetParent !== null || el.classList.contains('visible') || el === lightboxClose);
       }
-      function openLightbox(list, startIndex, title, tag, projectId) {
+      function openLightbox(list, startIndex, title, tag, projectId, aspect) {
         currentList = list;
         currentIndex = startIndex || 0;
         currentLightboxProjectId = projectId || '';
+        currentKnownAspect = aspect || '9/16';
         lastFocused = document.activeElement;
 
         const titleEl = document.getElementById('lightbox-title');
@@ -2870,13 +3053,21 @@
 
         lightbox.classList.add('open');
         document.body.style.overflow = 'hidden';
+        updateLightboxFrameAspect(currentKnownAspect);
         showIndex();
         if (lightboxClose) lightboxClose.focus();
       }
       window.openLightbox = openLightbox;
 
       function closeLightbox() {
-        lightboxVideo.pause();
+        if (lightboxVideo) {
+          lightboxVideo.pause();
+          lightboxVideo.removeAttribute('src');
+          lightboxVideo.load();
+        }
+        setSpinner(false);
+        if (unmuteBtn) unmuteBtn.classList.remove('visible');
+
         lightbox.classList.remove('open');
         document.body.style.overflow = '';
         if (window.location.hash.startsWith('#watch=')) {
@@ -2959,10 +3150,14 @@
         const video = thumb.querySelector('.work-video');
         if (!video) return;
         if (force || video.muted) {
-          video.pause();
-          video.currentTime = 0;
-          video.muted = true;
           thumb.classList.remove('video-active');
+          try {
+            video.pause();
+            if (video.currentTime > 0) {
+              video.currentTime = 0;
+            }
+          } catch(e) {}
+          video.muted = true;
         }
       }
 
@@ -2979,11 +3174,15 @@
         const cardId = card ? (card.dataset.id || '') : '';
         const cardTitle = card ? (card.dataset.title || '') : '';
         const cardTag = card ? (card.dataset.tag || '') : '';
+        const cardAspect = card ? (card.dataset.aspect || '9/16') : '9/16';
         const watchFullBtn = pane.querySelector('.watch-full-btn');
 
         if (video) {
           if (!alwaysPlaying) {
-            // 10-SECOND TEASER LOOP FOR HOVER GRID PREVIEWS ONLY (Hero comparison video plays full length)
+            let playPromise = null;
+            let isHovered = false;
+
+            // 10-SECOND TEASER LOOP FOR HOVER GRID PREVIEWS ONLY
             video.addEventListener('timeupdate', () => {
               if (video.muted && video.currentTime >= 10) {
                 video.currentTime = 0;
@@ -2991,41 +3190,73 @@
               }
             });
 
-            pane.addEventListener('mouseenter', () => {
-              if (video.muted && video.paused) {
-                stopOtherGridPreviews(pane);
+            // Smooth reveal once playback actually starts (no black flash)
+            video.addEventListener('playing', () => {
+              if (isHovered) {
                 pane.classList.add('video-active');
-                video.currentTime = 0;
-                video.muted = true;
-                video.play().catch(() => { });
               }
             });
-            pane.addEventListener('mouseleave', () => {
-              if (video.muted) {
-                resetGridPreview(pane, false);
+
+            const startPreview = () => {
+              isHovered = true;
+              stopOtherGridPreviews(pane);
+              video.muted = true;
+              playPromise = video.play();
+              if (playPromise !== undefined) {
+                playPromise.then(() => {
+                  if (isHovered) {
+                    pane.classList.add('video-active');
+                  } else {
+                    video.pause();
+                    pane.classList.remove('video-active');
+                  }
+                }).catch(() => {});
               }
-            });
+            };
+
+            const stopPreview = () => {
+              isHovered = false;
+              if (playPromise !== undefined && playPromise !== null) {
+                playPromise.then(() => {
+                  if (!isHovered) {
+                    video.pause();
+                    pane.classList.remove('video-active');
+                  }
+                }).catch(() => {
+                  video.pause();
+                  pane.classList.remove('video-active');
+                });
+              } else {
+                video.pause();
+                pane.classList.remove('video-active');
+              }
+            };
+
+            // Attach to whole card so hovering card or thumb starts playback
+            const hoverTarget = card || pane;
+            hoverTarget.addEventListener('mouseenter', startPreview);
+            hoverTarget.addEventListener('mouseleave', stopPreview);
           }
 
           // Clicking pane or Watch Full button opens Fullscreen Lightbox with audio & metadata
           pane.addEventListener('click', (e) => {
             if (e.target.closest('.expand-btn') || e.target.closest('.watch-full-btn')) return;
             e.stopPropagation();
-            openLightbox(videoList, 0, cardTitle, cardTag, cardId);
+            openLightbox(videoList, 0, cardTitle, cardTag, cardId, cardAspect);
           });
         }
 
         if (watchFullBtn) {
           watchFullBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            openLightbox(videoList, 0, cardTitle, cardTag, cardId);
+            openLightbox(videoList, 0, cardTitle, cardTag, cardId, cardAspect);
           });
         }
 
         if (expandBtn) {
           expandBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            openLightbox(videoList, 0, cardTitle, cardTag, cardId);
+            openLightbox(videoList, 0, cardTitle, cardTag, cardId, cardAspect);
           });
         }
       }
@@ -3041,7 +3272,7 @@
             if (match) {
               const videoList = match.video ? (Array.isArray(match.video) ? match.video : [match.video]) : [];
               if (videoList.length > 0) {
-                openLightbox(videoList, 0, match.title, match.tag, match.id);
+                openLightbox(videoList, 0, match.title, match.tag, match.id, match.aspect);
               }
             }
           }
