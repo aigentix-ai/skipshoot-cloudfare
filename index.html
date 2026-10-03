@@ -558,9 +558,17 @@
       cursor: grabbing;
     }
 
-    @media (max-width:720px) {
+    @media (max-width:768px) {
       .compare-sticky-wrap {
-        height: 180vh;
+        height: auto;
+      }
+      .compare-sticky {
+        position: relative;
+        height: auto;
+        padding: 20px 0 28px;
+      }
+      .compare-frame {
+        --wipe: 50%;
       }
     }
 
@@ -3038,14 +3046,18 @@
 
       let isDragging = false;
 
+      function isMobile() {
+        return window.innerWidth <= 768 || window.matchMedia('(max-width: 768px)').matches;
+      }
+
       function setWipe(pct) {
         pct = Math.min(95, Math.max(5, pct));
         frame.style.setProperty('--wipe', pct + '%');
       }
 
-      // scroll-driven wipe: maps how far the sticky block has been scrolled through
+      // scroll-driven wipe: only active on desktop, completely disabled on phones
       function scrollWipe() {
-        if (isDragging) return;
+        if (isDragging || isMobile()) return;
         const rect = wrap.getBoundingClientRect();
         const total = rect.height - window.innerHeight;
         if (total <= 0) return;
@@ -3055,35 +3067,54 @@
         const pct = 82 - progress * (82 - 16);
         setWipe(pct);
       }
-      window.addEventListener('scroll', scrollWipe, { passive: true });
-      scrollWipe();
 
-      // manual drag override
+      function updateComparePosition() {
+        if (isMobile()) {
+          // Default to middle (50%) on phones: 1 side image, 1 side video
+          setWipe(50);
+        } else {
+          scrollWipe();
+        }
+      }
+
+      window.addEventListener('scroll', scrollWipe, { passive: true });
+      window.addEventListener('resize', updateComparePosition, { passive: true });
+      updateComparePosition();
+
+      // manual drag override (works on touch and mouse)
       function pctFromEvent(e) {
         const rect = frame.getBoundingClientRect();
-        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        const clientX = (e.touches && e.touches.length) ? e.touches[0].clientX : e.clientX;
+        const x = clientX - rect.left;
         return (x / rect.width) * 100;
       }
 
       function onDown(e) {
         isDragging = true;
         handle.style.cursor = 'grabbing';
+        if (e.pointerId && handle.setPointerCapture) {
+          try { handle.setPointerCapture(e.pointerId); } catch (err) { }
+        }
         setWipe(pctFromEvent(e));
       }
       function onMove(e) {
         if (!isDragging) return;
-        e.preventDefault();
         setWipe(pctFromEvent(e));
       }
-      function onUp() {
+      function onUp(e) {
+        if (!isDragging) return;
         isDragging = false;
         handle.style.cursor = 'grab';
+        if (e.pointerId && handle.releasePointerCapture) {
+          try { handle.releasePointerCapture(e.pointerId); } catch (err) { }
+        }
       }
 
       handle.addEventListener('pointerdown', onDown);
       frame.addEventListener('pointerdown', (e) => { if (e.target === handle) return; onDown(e); });
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
     })();
   </script>
   <script>
@@ -3264,6 +3295,9 @@
           history.replaceState(null, '', window.location.pathname + window.location.search);
         }
         if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
+        if (typeof window.updateMobileActiveVideo === 'function') {
+          setTimeout(window.updateMobileActiveVideo, 120);
+        }
       }
       lightbox.addEventListener('keydown', (e) => {
         if (e.key !== 'Tab') return;
@@ -3426,10 +3460,16 @@
               }
             };
 
-            // Attach to whole card so hovering card or thumb starts playback
+            // Attach to whole card so hovering card or thumb starts playback (desktop only)
             const hoverTarget = card || pane;
-            hoverTarget.addEventListener('mouseenter', startPreview);
-            hoverTarget.addEventListener('mouseleave', stopPreview);
+            hoverTarget.addEventListener('mouseenter', () => {
+              if (window.innerWidth <= 768) return;
+              startPreview();
+            });
+            hoverTarget.addEventListener('mouseleave', () => {
+              if (window.innerWidth <= 768) return;
+              stopPreview();
+            });
           }
 
           // Clicking pane or Watch Full button opens Fullscreen Lightbox with audio & metadata
@@ -3491,7 +3531,7 @@
       }
 
       // global wireGridCards helper
-      window.wireGridCards = function () {
+              window.wireGridCards = function () {
         document.querySelectorAll('.work-card').forEach(card => {
           if (card.dataset.wired === 'true') return;
           card.dataset.wired = 'true';
@@ -3501,8 +3541,113 @@
           const expandBtn = card.querySelector('.expand-btn');
           wireMediaPane(thumb, video, expandBtn, videoList);
         });
+        if (isPhoneScreen()) {
+          setTimeout(updateMobileActiveVideo, 150);
+        }
       };
       window.wireGridCards();
+
+      // --- MOBILE AUTO-PLAY ON SCROLL: THE MAIN VIDEO IN SCREEN CENTER PLAYS MUTED ---
+      let activeMobileThumb = null;
+      let mobileScrollRaf = null;
+
+      function isPhoneScreen() {
+        return window.innerWidth <= 768 || window.matchMedia('(max-width: 768px)').matches;
+      }
+
+      function updateMobileActiveVideo() {
+        if (!isPhoneScreen()) {
+          if (activeMobileThumb) {
+            resetGridPreview(activeMobileThumb, true);
+            activeMobileThumb = null;
+          }
+          return;
+        }
+
+        // Don't auto-play grid cards if fullscreen lightbox is open
+        if (lightbox && lightbox.classList.contains('open')) {
+          if (activeMobileThumb) {
+            resetGridPreview(activeMobileThumb, true);
+            activeMobileThumb = null;
+          }
+          return;
+        }
+
+        const thumbs = Array.from(document.querySelectorAll('.work-thumb:not(#compare-result)'));
+        if (!thumbs.length) return;
+
+        const viewportHeight = window.innerHeight;
+        const viewportCenter = viewportHeight / 2;
+
+        let bestThumb = null;
+        let minDistance = Infinity;
+
+        thumbs.forEach(thumb => {
+          // If inside a closed modal, ignore
+          const modal = thumb.closest('#all-projects-modal');
+          if (modal && !modal.classList.contains('open')) return;
+
+          const rect = thumb.getBoundingClientRect();
+          // Must have at least partial visibility in the central viewport area
+          if (rect.bottom > 80 && rect.top < viewportHeight - 80) {
+            const thumbCenter = (rect.top + rect.bottom) / 2;
+            const dist = Math.abs(thumbCenter - viewportCenter);
+            if (dist < minDistance) {
+              minDistance = dist;
+              bestThumb = thumb;
+            }
+          }
+        });
+
+        if (bestThumb !== activeMobileThumb) {
+          if (activeMobileThumb) {
+            resetGridPreview(activeMobileThumb, true);
+          }
+          activeMobileThumb = bestThumb;
+
+          if (bestThumb) {
+            const video = bestThumb.querySelector('.work-video');
+            if (video) {
+              if (!video.src && video.dataset.src) {
+                video.src = video.dataset.src;
+                video.load();
+              }
+              video.muted = true;
+              video.playsInline = true;
+              const playPromise = video.play();
+              if (playPromise !== undefined) {
+                playPromise.then(() => {
+                  if (activeMobileThumb === bestThumb) {
+                    bestThumb.classList.add('video-active');
+                  } else {
+                    video.pause();
+                    bestThumb.classList.remove('video-active');
+                  }
+                }).catch(() => {});
+              }
+            }
+          }
+        }
+      }
+
+      function onMobileScroll() {
+        if (!isPhoneScreen()) return;
+        if (mobileScrollRaf) return;
+        mobileScrollRaf = requestAnimationFrame(() => {
+          updateMobileActiveVideo();
+          mobileScrollRaf = null;
+        });
+      }
+
+      window.addEventListener('scroll', onMobileScroll, { passive: true });
+      window.addEventListener('resize', onMobileScroll, { passive: true });
+      window.updateMobileActiveVideo = updateMobileActiveVideo;
+
+      document.addEventListener('DOMContentLoaded', () => {
+        if (isPhoneScreen()) {
+          setTimeout(updateMobileActiveVideo, 350);
+        }
+      });
     })();
   </script>
   <script>
